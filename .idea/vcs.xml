@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Custom UNIX Shell Interpreter" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Git-Inspired File Management System" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Social Network Simulator" vcs="Git" />
+  </component>
+</project>

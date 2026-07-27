@@ -1,0 +1,17 @@
+---
+:id: 212737561
+:submitters:
+- :name: Ravi Kumawat
+  :email: mt1222027@iitd.ac.in
+- :name: Lakshaya Jain
+  :email: mt1221933@maths.iitd.ac.in
+- :name: Sumit Sonowal
+  :email: mt1221296@maths.iitd.ac.in
+- :name: Pulkit Sheoran
+  :email: ee1221714@ee.iitd.ac.in
+:created_at: !ruby/object:ActiveSupport::TimeWithZone
+  utc: 2023-11-15 03:13:24.928065000 Z
+  zone: !ruby/object:ActiveSupport::TimeZone
+    name: America/Los_Angeles
+  time: 2023-11-14 19:13:24.928065000 Z
+:status: processed
