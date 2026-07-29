@@ -6,7 +6,7 @@ class Flight:
             flight_no (int): Unique ID of each flight
             start_city (int): The city no. where the flight starts
             departure_time (int): Time at which the flight starts
-            end_city (int): The city no where the flight ends
+            end_city (int): The city no. where the flight ends
             arrival_time (int): Time at which the flight ends
             fare (int): The cost of taking this flight
         """

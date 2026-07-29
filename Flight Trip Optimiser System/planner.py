@@ -30,10 +30,10 @@ class Planner:
                          comparator=lambda x, y: x[0] < y[0] or (x[0] == y[0] and x[1] < y[1]))
         
         while not minheap.is_empty():
-            num_flights, curr_time, curr_city, route, dep_limit = minheap.extract_min()
-            
+            num_flights, curr_time, curr_city, route, dep_limit = minheap.extract_min()  #instead of coping the whole "route", we can store parent.
+            #dep_limit means you can't depart from the airport before this time.
             state = (curr_city, dep_limit)
-            if state in visited[state[0]]:
+            if state in visited[state[0]]: #unordered_set can be used for O(1) lookups!!
                 continue
             visited[state[0]].append(state)
                 
