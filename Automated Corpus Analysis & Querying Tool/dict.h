@@ -263,11 +263,13 @@ class word{
     string myword;
     long long corpuscount;
     long long csvcount;
+    int df;             // document frequency: number of unique paragraphs containing this word
     wordnode* head;
     wordnode* tail;
     word(string mword,long long csvcou){
         corpuscount=0;
         csvcount=csvcou;
+        df=0;
         myword=mword;
         head=new wordnode();
         tail=new wordnode();
@@ -281,6 +283,9 @@ class word{
         tail->prev=n;
         n->next=tail;
         corpuscount++;
+        // Increment df when paragraph changes (corpus inserted in sequential order)
+        if (n->prev==head || n->prev->bookcode!=book || n->prev->pageno!=pg || n->prev->parano!=par)
+            df++;
     }
     ~word(){
         wordnode* temp=head->next;
@@ -307,13 +312,9 @@ class trienode{
         }
     }
     ~trienode(){
+        if (wordlist!=nullptr) delete wordlist;
         for (int i=0;i<53;i++){
-            if (arr[i]!=nullptr){
-                if (wordlist!=nullptr){
-                    delete wordlist;
-                }
-                delete arr[i];
-            }
+            if (arr[i]!=nullptr) delete arr[i];
         }
     }
 };
@@ -385,6 +386,26 @@ class trie{
         if (!temp->endofword) return nullptr;
         return temp->wordlist;
     }
+
+    void collect_words_helper(trienode* node, vector<word*>& results){
+        if (!node) return;
+        if (node->endofword && node->wordlist) results.push_back(node->wordlist);
+        for (int i=0;i<53;i++) collect_words_helper(node->arr[i], results);
+    }
+
+    // Returns all word entries whose key starts with prefix
+    vector<word*> prefix_search(string prefix){
+        trienode* temp = root;
+        for (char c : prefix){
+            int k = asciii(c);
+            if (!temp || !temp->arr[k]) return {};
+            temp = temp->arr[k];
+        }
+        vector<word*> results;
+        collect_words_helper(temp, results);
+        return results;
+    }
+
     trienode* khtm(trienode* &root){
         if (!root) return nullptr;
         for (int i=0;i<53;i++){
@@ -425,4 +446,6 @@ public:
 
     /* -----------------------------------------*/
     bool is_unwanted(string i);
+
+    vector<word*> prefix_search(string prefix);
 };

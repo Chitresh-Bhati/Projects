@@ -22,6 +22,9 @@ private:
     int bmax;
     int pgmaxx;
     int prmaxx;
+    int N;              // total unique paragraphs (denominator for IDF)
+    int token_budget;   // max characters to send to LLM (context window budget)
+    int lastBook, lastPage, lastPara; // for counting unique paragraphs
 
 public:
 
@@ -53,5 +56,7 @@ public:
     /* -----------------------------------------*/
     /* Please do not touch the code above this line */
     Node* get_top_k_modified_para(string question, int k);
-    // You can add attributes/helper functions here
+
+    // Configure the character budget sent to the LLM (default: 4000 chars)
+    void set_token_budget(int budget);
 };

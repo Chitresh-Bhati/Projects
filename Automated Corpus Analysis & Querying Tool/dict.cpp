@@ -65,3 +65,7 @@ void Dict::dump_dictionary(string filename){
 bool Dict::is_unwanted(string i){
     return sr.uwords->search(i);
 }
+
+vector<word*> Dict::prefix_search(string prefix){
+    return sr.prefix_search(prefix);
+}

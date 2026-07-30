@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <sstream>
+#include <cmath>
 #include "qna_tool.h"
 
 
@@ -128,106 +129,102 @@ public:
 };
 
 using namespace std;
+
 class paranode{
-    public:
+public:
     long double frac;
-    paranode(){
-        frac=0;
-    }
+    paranode(){ frac=0; }
 };
 
 class pagenode{
-    public:
+public:
     vector<paranode*> vec;
-    pagenode(int paramax){
-        vec.resize(paramax,nullptr);
-    }
+    pagenode(int paramax){ vec.resize(paramax,nullptr); }
+    ~pagenode(){ for (auto p : vec) delete p; }
 };
 
 class booknode{
-    public:
+public:
     vector<pagenode*> vec;
-    booknode(int pagamax){
-        vec.resize(pagamax,nullptr);
-    }
+    booknode(int pagemax){ vec.resize(pagemax,nullptr); }
+    ~booknode(){ for (auto p : vec) delete p; }
 };
 
 class hashnode{
-    public:
+public:
     vector<booknode*> vec;
-    hashnode(int bookmax){
-        vec.resize(bookmax,nullptr);
-    }
+    hashnode(int bookmax){ vec.resize(bookmax,nullptr); }
+    ~hashnode(){ for (auto p : vec) delete p; }
 };
 
+// Tracks a scored paragraph reference
+struct ParagraphKey { int book, page, para; };
+
 class triehash{
-    public:
+public:
     hashnode* root;
     minheap minhp;
-    int bkmax;
-    int pgmax;
-    int prmax;
-    triehash(int bookmax,int pagemax,int paramax,int k){
+    int bkmax, pgmax, prmax;
+    int N;                       // total unique paragraphs in corpus (for IDF)
+    vector<ParagraphKey> touched; // paragraphs that received a score this query
+
+    triehash(int bookmax, int pagemax, int paramax, int k, int n){
         root=new hashnode(bookmax);
-        bkmax=bookmax;
-        pgmax=pagemax;
-        prmax=paramax;
+        bkmax=bookmax; pgmax=pagemax; prmax=paramax;
         minhp=minheap(k);
+        N=n;
     }
+    ~triehash(){ delete root; }
+
+    // Accumulate IDF-weighted TF scores for each posting of wordlist.
+    // IDF(t) = log((N+1) / (df(t)+1))  — smoothed to avoid log(0)
+    // Score for a paragraph accumulates one IDF unit per occurrence (= TF × IDF).
     void insert(word* wordlist){
-        if (wordlist==nullptr) return;
-        if (wordlist->head==nullptr) return;
+        if (!wordlist || !wordlist->head || wordlist->df==0) return;
+
+        long double idf = logl((long double)(N+1) / (wordlist->df+1));
+        if (idf <= 0) return; // term too common to contribute signal
+
         wordnode* temp=wordlist->head->next;
-        long double frac=(static_cast<long double>(wordlist->corpuscount+1))/(wordlist->csvcount+1);
         while (temp!=wordlist->tail){
-            int bkcode=temp->bookcode;
-            int pgno=temp->pageno;
-            int parno=temp->parano;
-            if (!root->vec[bkcode]) root->vec[bkcode]=new booknode(pgmax);
-            if (!root->vec[bkcode]->vec[pgno]) root->vec[bkcode]->vec[pgno]=new pagenode(prmax);
-            if (!root->vec[bkcode]->vec[pgno]->vec[parno]) root->vec[bkcode]->vec[pgno]->vec[parno]=new paranode();
-            root->vec[bkcode]->vec[pgno]->vec[parno]->frac+=frac;
+            int bk=temp->bookcode, pg=temp->pageno, pr=temp->parano;
+            if (!root->vec[bk]) root->vec[bk]=new booknode(pgmax);
+            if (!root->vec[bk]->vec[pg]) root->vec[bk]->vec[pg]=new pagenode(prmax);
+            bool is_new = (root->vec[bk]->vec[pg]->vec[pr]==nullptr);
+            if (is_new){
+                root->vec[bk]->vec[pg]->vec[pr]=new paranode();
+                touched.push_back({bk,pg,pr});
+            }
+            root->vec[bk]->vec[pg]->vec[pr]->frac += idf; // one IDF unit per occurrence = TF×IDF
             temp=temp->next;
         }
     }
 
+    // O(|touched|) — only visits paragraphs that were actually scored,
+    // not the full B×P×Pa space. This is the key O(n×f) optimization.
     void heapinsert(){
-        for (int i=0;i<bkmax;i++){
-            if (root->vec[i]){
-                for (int j=0;j<pgmax;j++){
-                    if (root->vec[i]->vec[j]){
-                        for (int k=0;k<prmax;k++){
-                            if (root->vec[i]->vec[j]->vec[k]){
-                                minhp.insert(minheapnode(i,j,k,root->vec[i]->vec[j]->vec[k]->frac));
-                            }
-                        }
-                    }
-                }
-            }
+        for (auto& pk : touched){
+            long double sc = root->vec[pk.book]->vec[pk.page]->vec[pk.para]->frac;
+            minhp.insert(minheapnode(pk.book,pk.page,pk.para,sc));
         }
     }
+
+    // Extract top-k, skipping zero-scored placeholder nodes.
+    // Results are returned head-first in descending score order.
     Node* givelargestk(int k){
-        Node* temp=nullptr;
-        // Node*head=nullptr;
-        for (int i=0;i<k;i++){
+        Node* head_node=nullptr;
+        int extracted=0;
+        while (extracted<k && !minhp.heap.empty()){
             minheapnode m=minhp.deleteMin();
-            if (temp==nullptr){
-                temp=new Node(m.bookcode,m.pagno,m.parno,0,0);
-                // temp=head;
-            }
-            else {
-                Node* n=new Node(m.bookcode,m.pagno,m.parno,0,0);
-                temp->left=n;
-                n->right=temp;
-                temp=n;
-            }
+            if (m.frac<=0) continue;
+            Node* n=new Node(m.bookcode,m.pagno,m.parno,0,0);
+            n->right=head_node;
+            if (head_node) head_node->left=n;
+            head_node=n;
+            extracted++;
         }
-        // temp->right=nullptr;
-        // head->left=nullptr;
-        return temp;
+        return head_node;
     }
-
-
 };
 
 string tolower(string s){
@@ -271,12 +268,9 @@ vector<string> getmyword(string sentence){
 
 
 QNA_tool::QNA_tool(){
-    // Implement your function here
-    Dict dict;
-    bmax=0;
-    pgmaxx=0;
-    prmaxx=0;
-    
+    bmax=0; pgmaxx=0; prmaxx=0;
+    N=0; token_budget=4000;
+    lastBook=-1; lastPage=-1; lastPara=-1;
 }
 
 QNA_tool::~QNA_tool(){
@@ -284,36 +278,49 @@ QNA_tool::~QNA_tool(){
 }
 
 void QNA_tool::insert_sentence(int book_code, int page, int paragraph, int sentence_no, string sentence){
-    // Implement your function here
-    dict.insert_sentence(book_code, page, paragraph, sentence_no,sentence);
+    dict.insert_sentence(book_code, page, paragraph, sentence_no, sentence);
     pgmaxx=max(page,pgmaxx);
     bmax=max(bmax,book_code);
     prmaxx=max(prmaxx,paragraph);
-    // searchengine.insert_sentence(book_code,page,paragraph,sentence_no,sentence);
+    // Count unique paragraphs for IDF denominator N
+    if (book_code!=lastBook || page!=lastPage || paragraph!=lastPara){
+        N++;
+        lastBook=book_code; lastPage=page; lastPara=paragraph;
+    }
     return;
 }
 
+void QNA_tool::set_token_budget(int budget){ token_budget=budget; }
+
+// Retrieval complexity: O(n × |term| + Σ f_i) where n = query terms,
+// |term| = trie lookup depth, f_i = posting list length for term i.
+// The heapinsert step is O(Σ f_i) (visits only scored paragraphs via
+// the touched list), NOT O(B × P × Pa) as in a naive scan.
+// This is O(n × f) where f = average/max postings per query term.
 Node* QNA_tool::get_top_k_para(string question, int k) {
-    // Implement your function here
     vector<string> qvec=getmyword(question);
-    triehash* updatehash=new triehash(bmax+3,pgmaxx+3,prmaxx+3,k);
-    for (string i:qvec){
+    triehash* updatehash=new triehash(bmax+3,pgmaxx+3,prmaxx+3,k,N);
+    for (string& i:qvec){
         updatehash->insert(dict.get_word_count(i));
     }
     updatehash->heapinsert();
-    return updatehash->givelargestk(k);
+    Node* result=updatehash->givelargestk(k);
+    delete updatehash;
+    return result;
 }
 
 Node* QNA_tool::get_top_k_modified_para(string question,int k){
     vector<string> qvec=getmyword(question);
-    triehash* updatehash=new triehash(bmax+3,pgmaxx+3,prmaxx+3,k);
-    for (string i:qvec){
+    triehash* updatehash=new triehash(bmax+3,pgmaxx+3,prmaxx+3,k,N);
+    for (string& i:qvec){
         if (!dict.is_unwanted(i)){
-        updatehash->insert(dict.get_word_count(i));
+            updatehash->insert(dict.get_word_count(i));
         }
     }
     updatehash->heapinsert();
-    return updatehash->givelargestk(k);
+    Node* result=updatehash->givelargestk(k);
+    delete updatehash;
+    return result;
 }
 
 void QNA_tool::query(string question, string filename){
@@ -395,45 +402,60 @@ std::string QNA_tool::get_paragraph(int book_code, int page, int paragraph){
 }
 
 void QNA_tool::query_llm(string filename, Node* root, int k, string question){
-
-    // first write the k paragraphs into different files
+    // Select highest-ranked paragraphs that fit within the token budget.
+    // This is the core LLM context-window problem: instead of dumping the
+    // entire corpus into the prompt, we send only the top-ranked passages
+    // that fit within token_budget characters.
 
     Node* traverse = root;
     int num_paragraph = 0;
+    int total_chars = 0;
 
-    while(num_paragraph < k){
-        assert(traverse != nullptr);
-        string p_file = "paragraph_";
-        p_file += to_string(num_paragraph);
-        p_file += ".txt";
-        // delete the file if it exists
-        remove(p_file.c_str());
-        ofstream outfile(p_file);
+    vector<string> selected_paragraphs;
+
+    while(traverse != nullptr && num_paragraph < k){
         string paragraph = get_paragraph(traverse->book_code, traverse->page, traverse->paragraph);
-        assert(paragraph != "$I$N$V$A$L$I$D$");
-        outfile << paragraph;
-        outfile.close();
+        if (paragraph.empty()){
+            traverse = traverse->right;
+            num_paragraph++;
+            continue;
+        }
+        // Stop adding paragraphs if budget would be exceeded
+        if (total_chars + (int)paragraph.size() > token_budget) break;
+        total_chars += (int)paragraph.size();
+        selected_paragraphs.push_back(paragraph);
         traverse = traverse->right;
         num_paragraph++;
     }
 
-    // write the query to query.txt
+    int actual_k = (int)selected_paragraphs.size();
+    if (actual_k == 0){
+        cout << "No relevant paragraphs found within token budget." << endl;
+        return;
+    }
+
+    // Write selected paragraphs to files
+    for(int i = 0; i < actual_k; i++){
+        string p_file = "paragraph_" + to_string(i) + ".txt";
+        remove(p_file.c_str());
+        ofstream outfile(p_file);
+        outfile << selected_paragraphs[i];
+        outfile.close();
+    }
+
+    // Write query with context header
     ofstream outfile("query.txt");
     outfile << "These are the excerpts from Mahatma Gandhi's books.\nOn the basis of this, ";
     outfile << question;
-    // You can add anything here - show all your creativity and skills of using ChatGPT
     outfile.close();
- 
-    // you do not need to necessarily provide k paragraphs - can configure yourself
 
-    // python3 <filename> num_paragraphs query.txt
+    cout << "[Context budget: " << total_chars << "/" << token_budget
+         << " chars, " << actual_k << " paragraphs selected]" << endl;
+
     string command = "python ";
     command += filename;
-    command += " ";
-    command += to_string(k);
-    command += " ";
-    command += "query.txt";
-
+    command += " " + to_string(actual_k);
+    command += " query.txt";
     system(command.c_str());
     return;
 }

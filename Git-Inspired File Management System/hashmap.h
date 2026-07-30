@@ -11,14 +11,14 @@ class hashmap{
     size_t bucketSize;
     size_t n_of_elements=0;
     vector<LinkedList<Key,Val>> buckets;
-    size_t hashKey(const string& k) {//based on a bit-mixing trick (Thomas Wang’s integer hash)
+    size_t hashKey(const string& k) {//djb2 hash
         size_t hash = 5381; //large prime
         for(char c:k) {
             hash=((hash<<5)+hash)+c;
         }
         return hash;
     }
-    size_t hashKey(int k) {//for integer
+    size_t hashKey(int k) {//for integer, based on a bit-mixing trick (Thomas Wang’s integer hash)
         // Mix the bits a little
         size_t hash=k;
         hash^=(hash>>20)^(hash>>12);
