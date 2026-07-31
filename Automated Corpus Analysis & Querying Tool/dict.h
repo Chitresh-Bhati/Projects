@@ -1,5 +1,6 @@
 // Do NOT add any other includes
-#include <string> 
+#pragma once
+#include <string>
 #include <vector>
 #include <sstream>
 #include <iostream>

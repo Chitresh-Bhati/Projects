@@ -59,4 +59,7 @@ public:
 
     // Configure the character budget sent to the LLM (default: 4000 chars)
     void set_token_budget(int budget);
+
+    // Returns total unique paragraphs indexed (IDF denominator N)
+    int get_N() const { return N; }
 };

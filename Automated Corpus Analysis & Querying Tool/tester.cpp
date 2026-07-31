@@ -99,7 +99,7 @@ int main(){
     /*
         Part-2 : Query the LLM
     */
-    while(getline(cin,question))
+while(getline(cin,question))
     {qna_tool.query(question, "api_call.py");}
     
     return 0;

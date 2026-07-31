@@ -69,7 +69,8 @@ Node* SearchEngine::search(string pattern, int& n_matches){
     vector<pair<int, tuple<int,int,int>>> scored;
     for (auto& kv : para_score)
         scored.push_back({kv.second, kv.first});
-    sort(scored.begin(), scored.end(), [](auto& a, auto& b){ return a.first > b.first; });
+    // Sort ascending: prepending in ascending order puts highest at head
+    sort(scored.begin(), scored.end(), [](auto& a, auto& b){ return a.first < b.first; });
 
     Node* head_node = nullptr;
     for (auto& sv : scored){

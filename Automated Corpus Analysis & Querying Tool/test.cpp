@@ -7,6 +7,7 @@
 #include "Node.h"
 #include "dict.h"
 #include "qna_tool.h"
+#include "search.h"
 using namespace std;
 
 // ── tiny test harness ────────────────────────────────────────────────────────
@@ -218,7 +219,7 @@ void test_idf_ranking(){
     qna.insert_sentence(1,1,2,1,"independence congress leader");
     qna.insert_sentence(1,2,1,1,"food agriculture farmer");
 
-    CHECK(qna.N == 3, "N=3 unique paragraphs");
+    CHECK(qna.get_N() == 3, "N=3 unique paragraphs");
 
     // get_top_k_para should rank para A first for query "freedom independence"
     Node* top = qna.get_top_k_para("freedom independence", 3);
